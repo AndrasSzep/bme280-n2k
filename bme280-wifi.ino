@@ -84,8 +84,8 @@ const unsigned long TransmitMessages[] PROGMEM = {130310L, // OutsideEnvironment
   #include <ESPAsyncWebServer.h>
 #endif
 // Replace with your network credentials 
-const char* ssid = "DrayTek";  // Enter SSID here
-const char* password = "medved28";  //Enter Password here
+const char* ssid = "WiFissid";  // Enter SSID here
+const char* password = "********";  //Enter Password here
 
 //ESP8266WebServer server(80);
 
@@ -112,7 +112,7 @@ float temperature = 18, humidity = 50, pressure = 1000, altitude = 0;
 float OutTemp = 28, InTemp = 20;
 
 
-// sacn for I2C devices
+// sacn for I2C devices - some sensors die quite too early
 void scan_I2C() {
   byte error, address;
   uint8_t ONE = 1;
@@ -355,9 +355,10 @@ void SendN2kTempHumPress(double intemp, double outtemp, double humidity, double 
   */
   NMEA2000.SendMsg(N2kMsg);
 }
+//====================check if switch is ON or OFF and turn on/off onboard LED accordingly 
 int switchOn() {
   // read the state of the pushbutton value:
-  buttonState = digitalRead(SWITCH); Serial.print(buttonState);
+  buttonState = digitalRead(SWITCH);
   // check if the pushbutton is pressed. If it is, the buttonState is HIGH:
   if (buttonState == HIGH) {
     // turn LED on:
@@ -373,8 +374,9 @@ int switchOn() {
 void setup(){
   // Serial port for debugging purposes
   Serial.begin(115200);
-  Serial.println("\n====================\nSEKOM - THP-01 v1.1\n====================\nCombined inside/outside temperature, humidity and pressure monitor\n");
-  Serial.println("\nhttp://....ip.../intemp; /outtemp; /pressure; /humidity\n");
+  Serial.println("\n====================\nSEKOM - THP-01 v1.1\n====================\n");
+  Serial.println("Combined inside/outside temperature, humidity and pressure monitor\n");
+  Serial.println("\nUsage: http://***this_servers_ip***/intemp; /outtemp; /pressure; /humidity\n");
   
   pinMode(LED, OUTPUT);     // Initialize the LED_BUILTIN pin as an output
   digitalWrite(LED, LOW);   // Turn the LED on by making the voltage LOW 
@@ -390,14 +392,14 @@ void setup(){
    
  if (!bme.begin(0x76)) {
     Serial.println(F("Could not find a valid BME280 sensor, check wiring!"));
-    // while (1) delay(10);
+    // while (1) delay(10); // if we want stop at this error
  }
 
   bme_temp->printSensorDetails();
   bme_pressure->printSensorDetails();
   bme_humidity->printSensorDetails();
 
-  
+// check if SWITCH is ON and start WiFi service  
   if( switchOn() == HIGH ){  
    // Connect to Wi-Fi
    WiFi.begin(ssid, password);
