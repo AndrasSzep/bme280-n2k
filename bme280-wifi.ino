@@ -40,6 +40,11 @@ OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
                       RX2 - GPIO16
  
 ********/
+
+// Replace with your network credentials 
+const char* ssid = "DrayTek";  // Enter SSID here
+const char* password = "medved28";  //Enter Password here
+
 // CAN BUS
 #define ESP32_CAN_TX_PIN GPIO_NUM_17  //TX2 Set CAN TX GPIO15 =  D8
 #define ESP32_CAN_RX_PIN GPIO_NUM_16  //RX2 Set CAN RX GPIO13 =  D7
@@ -48,14 +53,28 @@ OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define SWITCH 19   // ON/Off Switch for WIFI ~GPIO19
 int buttonState = 0;         // variable for reading the pushbutton status
 
-#include <OneWire.h>
-#include <DallasTemperature.h>
+// which external temperature sensor is connected
+//#define DS18B20_CONNECTED
+#define DHT_CONNECTED
 
-// GPIO where the DS18B20 is connected to
-const int oneWireBus = 4;     //GPIO4
+#ifdef DS18B20_CONNECTED
+  #include <OneWire.h>
+  #include <DallasTemperature.h>
+  // GPIO where the DS18B20 is connected to
+  const int oneWireBus = 4;     //GPIO4
+  OneWire oneWire(oneWireBus);    // Setup a oneWire instance to communicate with any OneWire devices
+  DallasTemperature sensors(&oneWire);  // Pass our oneWire reference to Dallas Temperature sensor 
+#endif
 
-OneWire oneWire(oneWireBus);    // Setup a oneWire instance to communicate with any OneWire devices
-DallasTemperature sensors(&oneWire);  // Pass our oneWire reference to Dallas Temperature sensor 
+#ifdef DHT_CONNECTED
+  #include "DHT.h"
+  #define DHTPIN 4  //use insteasd of the failed DS18B20
+  // Uncomment whatever type you're using!
+  #define DHTTYPE DHT11   // DHT 11
+  //#define DHTTYPE DHT22   // DHT 22  (AM2302), AM2321
+  //#define DHTTYPE DHT21   // DHT 21 (AM2301)
+  DHT dht(DHTPIN, DHTTYPE);
+#endif
 
 #include <NMEA2000_CAN.h>  // This will automatically choose right CAN library and create suitable NMEA2000 object
 //#include <Seasmart.h>
@@ -83,9 +102,6 @@ const unsigned long TransmitMessages[] PROGMEM = {130310L, // OutsideEnvironment
   #include <ESPAsyncTCP.h>
   #include <ESPAsyncWebServer.h>
 #endif
-// Replace with your network credentials 
-const char* ssid = "WiFissid";  // Enter SSID here
-const char* password = "********";  //Enter Password here
 
 //ESP8266WebServer server(80);
 
@@ -109,10 +125,10 @@ Adafruit_Sensor *bme_humidity = bme.getHumiditySensor();
 
 //declare global sensor data
 float temperature = 18, humidity = 50, pressure = 1000, altitude = 0;
-float OutTemp = 28, InTemp = 20;
+float OutTemp = 28, InTemp = 20, InHum = 45, OutHum = 55;
 
 
-// sacn for I2C devices - some sensors die quite too early
+// sacn for I2C devices
 void scan_I2C() {
   byte error, address;
   uint8_t ONE = 1;
@@ -252,14 +268,15 @@ const char index_html[] PROGMEM = R"rawliteral(
     <span id="pressure">%PRESSURE%</span>
     <sup class="units"></sup>mBar
   </p>
-  <p>Humidity: 
+  <p>Inside humidity: 
     <span class="ds-labels"> </span>
-    <span id="humidity">%HUMIDITY%</span>
-    <sup class="units"></sup>&#037;</p>
-  <p>Altitude: 
+    <span id="inhum">%INHUM%</span>
+    <sup class="units"></sup>&#037;
+  </p>
+  <p>Outside humidity: 
     <span class="ds-labels"> </span> 
-    <span id="altitude">%ALTITUDE%</span> 
-    <sup class="units"></sup>meters
+    <span id="outhum">%OUTHUM%</span> 
+    <sup class="units"></sup>&#037;
   </p>
   <h6 align="right">BME280-&gt;N2K ©2020 sekom.com</h6>
 </body>
@@ -298,20 +315,20 @@ setInterval(function ( ) {
   var xhttp = new XMLHttpRequest();
   xhttp.onreadystatechange = function() {
     if (this.readyState == 4 && this.status == 200) {
-      document.getElementById("humidity").innerHTML = this.responseText;
+      document.getElementById("inhum").innerHTML = this.responseText;
     }
   };
-  xhttp.open("GET", "/humidity", true);
+  xhttp.open("GET", "/inhum", true);
   xhttp.send();
 }, 10000) ;
 setInterval(function ( ) {
   var xhttp = new XMLHttpRequest();
   xhttp.onreadystatechange = function() {
     if (this.readyState == 4 && this.status == 200) {
-      document.getElementById("altitude").innerHTML = this.responseText;
+      document.getElementById("outhum").innerHTML = this.responseText;
     }
   };
-  xhttp.open("GET", "/altitude", true);
+  xhttp.open("GET", "/outhum", true);
   xhttp.send();
 }, 10000) ;
 </script>
@@ -329,36 +346,38 @@ String processor(const String& var){
   else if(var == "PRESSURE"){
     return String(pressure);
   }
-  else if(var == "HUMIDITY"){
-    return String(humidity);
+  else if(var == "INHUM"){
+    return String(InHum);
   }
-  else if(var == "ALTITUDE"){
-    return String(altitude);
+  else if(var == "OUTHUM"){
+    return String(OutHum);
   }
   return String();
 }
 
 //============================= send temperature/humidity/pressure to NMEA2000 ===================================
 
-void SendN2kTempHumPress(double intemp, double outtemp, double humidity, double pressure) {
+void SendN2kTempHumPress(double intemp, double outtemp, double inhum, double outhum, double pressure) {
   tN2kMsg N2kMsg;
 
     // Select the right PGN for your MFD and set the PGN value also in "TransmitMessages[]"
 
    SetN2kEnvironmentalParameters(N2kMsg, 0, N2kts_OutsideTemperature, CToKelvin(outtemp),           // PGN130311, uncomment the PGN to be used 
-                    N2khs_OutsideHumidity, humidity, pressure);
+                    N2khs_OutsideHumidity, outhum, pressure);
   NMEA2000.SendMsg(N2kMsg);
+  
   SetN2kTemperature(N2kMsg, 0, 1, N2kts_InsideTemperature, CToKelvin(intemp), N2kDoubleNA) ;
-/*  
-  SetN2kHumidity(N2kMsg, 0, 1, N2khs_OutsideHumidity, humidity, N2kDoubleNA) ;
+  NMEA2000.SendMsg(N2kMsg);
+
+  SetN2kHumidity(N2kMsg, 0, 1, N2khs_InsideHumidity, inhum, N2kDoubleNA) ;
+  NMEA2000.SendMsg(N2kMsg);
+
   SetN2kPressure(N2kMsg, 0, 1, N2kps_Atmospheric, hPAToPascal(pressure));
-  */
   NMEA2000.SendMsg(N2kMsg);
 }
-//====================check if switch is ON or OFF and turn on/off onboard LED accordingly 
 int switchOn() {
   // read the state of the pushbutton value:
-  buttonState = digitalRead(SWITCH);
+  buttonState = digitalRead(SWITCH); Serial.print(buttonState);
   // check if the pushbutton is pressed. If it is, the buttonState is HIGH:
   if (buttonState == HIGH) {
     // turn LED on:
@@ -374,32 +393,36 @@ int switchOn() {
 void setup(){
   // Serial port for debugging purposes
   Serial.begin(115200);
-  Serial.println("\n====================\nSEKOM - THP-01 v1.1\n====================\n");
-  Serial.println("Combined inside/outside temperature, humidity and pressure monitor\n");
-  Serial.println("\nUsage: http://***this_servers_ip***/intemp; /outtemp; /pressure; /humidity\n");
+  Serial.println("\n====================\nSEKOM - THP-01 v1.1\n====================\nCombined inside/outside temperature, humidity and pressure monitor\n");
+  Serial.println("\nhttp://....ip.../intemp; /outtemp; /pressure; /humidity\n");
   
   pinMode(LED, OUTPUT);     // Initialize the LED_BUILTIN pin as an output
   digitalWrite(LED, LOW);   // Turn the LED on by making the voltage LOW 
   pinMode(SWITCH, INPUT);   // initialize the switch pin as an input:
   delay(1000);
 
+#ifdef DS18B20_CONNECTED
   // Start the DS18B20 sensor
   sensors.begin();
+#endif  
   Wire.begin(); // initialise I2C protocol
+  
+#ifdef DHT_CONNECTED
+    dht.begin(); //start DHT11
+#endif
   
   scan_I2C();  //scan for sensors
   bme.begin(0x76);
    
  if (!bme.begin(0x76)) {
     Serial.println(F("Could not find a valid BME280 sensor, check wiring!"));
-    // while (1) delay(10); // if we want stop at this error
+    // while (1) delay(10); //we don't want to stop here even if it is not working
  }
 
   bme_temp->printSensorDetails();
   bme_pressure->printSensorDetails();
   bme_humidity->printSensorDetails();
-
-// check if SWITCH is ON and start WiFi service  
+  
   if( switchOn() == HIGH ){  
    // Connect to Wi-Fi
    WiFi.begin(ssid, password);
@@ -427,11 +450,11 @@ void setup(){
     server.on("/pressure", HTTP_GET, [](AsyncWebServerRequest *request){ 
       request->send_P(200, "text/plain", String(pressure).c_str());
     });
-    server.on("/humidity", HTTP_GET, [](AsyncWebServerRequest *request){ 
-      request->send_P(200, "text/plain", String(humidity).c_str());
+    server.on("/inhum", HTTP_GET, [](AsyncWebServerRequest *request){ 
+      request->send_P(200, "text/plain", String(InHum).c_str());
     });  
-    server.on("/altitude", HTTP_GET, [](AsyncWebServerRequest *request){ 
-      request->send_P(200, "text/plain", String(altitude).c_str());
+    server.on("/outhum", HTTP_GET, [](AsyncWebServerRequest *request){ 
+      request->send_P(200, "text/plain", String(OutHum).c_str());
     });
   
     // Start server
@@ -470,28 +493,46 @@ void setup(){
 }
  
 void loop(){
+  
   sensors_event_t temp_event, pressure_event, humidity_event;
+  
   bme_temp->getEvent(&temp_event);
   bme_pressure->getEvent(&pressure_event);
   bme_humidity->getEvent(&humidity_event);
+  humidity = humidity_event.relative_humidity;
+  
+#ifdef DS18B20_CONNECTED  
   sensors.requestTemperatures(); 
   OutTemp = sensors.getTempCByIndex(0);
-  
+  OutHum = humidity; //there is no humidity sensor outside
+#endif
+
+#ifdef DHT_CONNECTED
+  // Reading temperature or humidity takes about 250 milliseconds!
+  // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
+  OutHum = dht.readHumidity();
+  // Read temperature as Celsius (the default)
+  OutTemp = dht.readTemperature();
+  InHum = humidity; //is the inside humidity
+#endif
+
   InTemp = temp_event.temperature;
   pressure = pressure_event.pressure;
-  humidity = humidity_event.relative_humidity;
+
   altitude = bme.readAltitude(SEALEVELPRESSURE_HPA);
-  SendN2kTempHumPress(InTemp, OutTemp, humidity, hPAToPascal(pressure));
+  
+  SendN2kTempHumPress(InTemp, OutTemp, InHum, OutHum, hPAToPascal(pressure)); //send data to NMEA2000
   
   Serial.print("Pressure = ");
   Serial.print(pressure,2); // print with 2 decimal places
-  Serial.print(" hPa,  Inside = ");
+  Serial.print(" hPa,  Temperature (in/outside) = ");
   Serial.print(InTemp,1); // print with 1 decimal places
-  Serial.print(" ˚C,   Outside = ");
+  Serial.print(" / ");
   Serial.print(OutTemp,1);
-  Serial.print( " ˚C,   Humidity = ");
-  Serial.print(humidity,1); // print with 1 decimal places
-  Serial.print( " %,   Altitude = ");
-  Serial.println(altitude,1);
+  Serial.print( " ˚C,   Humidity (in/outside) = ");
+  Serial.print(InHum,1); // print with 1 decimal places
+  Serial.print( " / ");
+  Serial.print(OutHum,1);
+  Serial.println(" %");
   delay(5000);
 }
