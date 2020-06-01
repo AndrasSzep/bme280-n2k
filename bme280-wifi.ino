@@ -42,8 +42,8 @@ OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ********/
 
 // Replace with your network credentials 
-const char* ssid = "DrayTek";  // Enter SSID here
-const char* password = "medved28";  //Enter Password here
+const char* ssid = "YourWiFissid";  // Enter SSID here
+const char* password = "WiFiPassword";  //Enter Password here
 
 // CAN BUS
 #define ESP32_CAN_TX_PIN GPIO_NUM_17  //TX2 Set CAN TX GPIO15 =  D8
