@@ -42,8 +42,8 @@ OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ********/
 
 // Replace with your network credentials 
-const char* ssid = "DrayTek";  // Enter SSID here
-const char* password = "medved28";  //Enter Password here
+const char* ssid = "YourWiFi_ssid";  // Enter SSID here
+const char* password = "YourWifi_Password";  //Enter Password here
 
 // CAN BUS
 #define ESP32_CAN_TX_PIN GPIO_NUM_17  //TX2 Set CAN TX GPIO15 =  D8
@@ -393,7 +393,7 @@ int switchOn() {
 void setup(){
   // Serial port for debugging purposes
   Serial.begin(115200);
-  Serial.println("\n====================\nSEKOM - THP-01 v1.1\n====================\nCombined inside/outside temperature, humidity and pressure monitor\n");
+  Serial.println("\n====================\nSEKOM - THP-01 v1.2\n====================\nCombined inside/outside temperature, humidity and pressure monitor\n");
   Serial.println("\nhttp://....ip.../intemp; /outtemp; /pressure; /humidity\n");
   
   pinMode(LED, OUTPUT);     // Initialize the LED_BUILTIN pin as an output
