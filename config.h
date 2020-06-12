@@ -84,6 +84,6 @@ int buttonState = 0;         // variable for reading the pushbutton status
 /************************* Adafruit.io Setup *********************************/
 #define AIO_SERVER      "io.adafruit.com"
 #define AIO_SERVERPORT  1883                   // use 8883 for SSL
-#define AIO_USERNAME    "sekom"
-#define AIO_KEY         "aio_wKUC92mzxkfuwhfGNjLUuB01HqSe"
+#define AIO_USERNAME    "your_aio_username"
+#define AIO_KEY         "your_aio_key"
 #endif
