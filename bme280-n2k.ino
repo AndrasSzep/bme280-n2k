@@ -1,4 +1,8 @@
 /*********
+ * 
+ * BME280 and DHT sensor data sender to NMEA2000 CAN_BUS, WiFi (HTTP) and MQTT v1.3
+ *   by © SEKOM.com - Dr. András Szép 2020-06-10
+ * 
   - ESP-WROOM-32 Bluetooth and WIFI Dual Core CPU with Low Power Consumption
     https://www.aliexpress.com/item/32864722159.html?spm=a2g0s.9042311.0.0.7ac14c4dv0nB1k
   - GY-BME280-3.3 precision altimeter atmospheric pressure BME280 sensor module
@@ -8,7 +12,6 @@
   - SN65HVD230 CAN bus transceiver
     https://www.aliexpress.com/item/32686393467.html?spm=a2g0s.9042311.0.0.7ac14c4dv0nB1k
    
-  by © SEKOM.com - Dr. András Szép 2020 using open source libraries v1.0
 ==================================================================================
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -41,40 +44,7 @@ OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  
 ********/
 
-// Replace with your network credentials 
-const char* ssid = "YourWiFi_ssid";  // Enter SSID here
-const char* password = "YourWifi_Password";  //Enter Password here
-
-// CAN BUS
-#define ESP32_CAN_TX_PIN GPIO_NUM_17  //TX2 Set CAN TX GPIO15 =  D8
-#define ESP32_CAN_RX_PIN GPIO_NUM_16  //RX2 Set CAN RX GPIO13 =  D7
-
-#define LED 5    // builtin LED GPIO05
-#define SWITCH 19   // ON/Off Switch for WIFI ~GPIO19
-int buttonState = 0;         // variable for reading the pushbutton status
-
-// which external temperature sensor is connected
-//#define DS18B20_CONNECTED
-#define DHT_CONNECTED
-
-#ifdef DS18B20_CONNECTED
-  #include <OneWire.h>
-  #include <DallasTemperature.h>
-  // GPIO where the DS18B20 is connected to
-  const int oneWireBus = 4;     //GPIO4
-  OneWire oneWire(oneWireBus);    // Setup a oneWire instance to communicate with any OneWire devices
-  DallasTemperature sensors(&oneWire);  // Pass our oneWire reference to Dallas Temperature sensor 
-#endif
-
-#ifdef DHT_CONNECTED
-  #include "DHT.h"
-  #define DHTPIN 4  //use insteasd of the failed DS18B20
-  // Uncomment whatever type you're using!
-  #define DHTTYPE DHT11   // DHT 11
-  //#define DHTTYPE DHT22   // DHT 22  (AM2302), AM2321
-  //#define DHTTYPE DHT21   // DHT 21 (AM2301)
-  DHT dht(DHTPIN, DHTTYPE);
-#endif
+#include "config.h"
 
 #include <NMEA2000_CAN.h>  // This will automatically choose right CAN library and create suitable NMEA2000 object
 //#include <Seasmart.h>
@@ -127,6 +97,30 @@ Adafruit_Sensor *bme_humidity = bme.getHumiditySensor();
 float temperature = 18, humidity = 50, pressure = 1000, altitude = 0;
 float OutTemp = 28, InTemp = 20, InHum = 45, OutHum = 55;
 
+#ifdef MQTT
+/************ Global State (you don't need to change this!) ******************/
+
+// Create an ESP8266 WiFiClient class to connect to the MQTT server.
+WiFiClient client;
+// or... use WiFiFlientSecure for SSL
+//WiFiClientSecure client;
+
+// Setup the MQTT client class by passing in the WiFi client and MQTT server and login details.
+Adafruit_MQTT_Client mqtt(&client, AIO_SERVER, AIO_SERVERPORT, AIO_USERNAME, AIO_KEY);
+
+/****************************** Feeds ***************************************/
+
+// Setup a feeds for publishing.
+// Notice MQTT paths for AIO follow the form: <username>/feeds/<feedname>
+Adafruit_MQTT_Publish humidityFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/humidity");
+Adafruit_MQTT_Publish pressureFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/pressure");
+Adafruit_MQTT_Publish temperatureFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/temperature");
+
+// Setup a feed called 'onoff' for subscribing to changes.
+//Adafruit_MQTT_Subscribe onoffbutton = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/onoff");
+
+void MQTT_connect();
+#endif
 
 // sacn for I2C devices
 void scan_I2C() {
@@ -365,15 +359,16 @@ void SendN2kTempHumPress(double intemp, double outtemp, double inhum, double out
    SetN2kEnvironmentalParameters(N2kMsg, 0, N2kts_OutsideTemperature, CToKelvin(outtemp),           // PGN130311, uncomment the PGN to be used 
                     N2khs_OutsideHumidity, outhum, pressure);
   NMEA2000.SendMsg(N2kMsg);
-  
+  delay(1000);  
   SetN2kTemperature(N2kMsg, 0, 1, N2kts_InsideTemperature, CToKelvin(intemp), N2kDoubleNA) ;
   NMEA2000.SendMsg(N2kMsg);
-
+  delay(1000);
   SetN2kHumidity(N2kMsg, 0, 1, N2khs_InsideHumidity, inhum, N2kDoubleNA) ;
   NMEA2000.SendMsg(N2kMsg);
-
+  delay(1000);
   SetN2kPressure(N2kMsg, 0, 1, N2kps_Atmospheric, hPAToPascal(pressure));
   NMEA2000.SendMsg(N2kMsg);
+  delay(1000);
 }
 int switchOn() {
   // read the state of the pushbutton value:
@@ -393,7 +388,7 @@ int switchOn() {
 void setup(){
   // Serial port for debugging purposes
   Serial.begin(115200);
-  Serial.println("\n====================\nSEKOM - THP-01 v1.2\n====================\nCombined inside/outside temperature, humidity and pressure monitor\n");
+  Serial.println("\n====================\nSEKOM - THP-01 v1.1\n====================\nCombined inside/outside temperature, humidity and pressure monitor\n");
   Serial.println("\nhttp://....ip.../intemp; /outtemp; /pressure; /humidity\n");
   
   pinMode(LED, OUTPUT);     // Initialize the LED_BUILTIN pin as an output
@@ -470,8 +465,8 @@ void setup(){
   NMEA2000.SetProductInformation("1", // Manufacturer's Model serial code
                                  101, // Manufacturer's product code
                                  "BME280-N2K",  // Manufacturer's Model ID
-                                 "1.0.0.1 (2020-03-07)",  // Manufacturer's Software version code
-                                 "1.0.0.1 (2020-03-07)" // Manufacturer's Model version
+                                 "1.0.3.1 (2020-06-10)",  // Manufacturer's Software version code
+                                 "1.0.1.1 (2020-06-10)" // Manufacturer's Model version
                                 );
   // Set device information
   NMEA2000.SetDeviceInformation(1001, // Unique number. Use e.g. Serial number.
@@ -534,5 +529,40 @@ void loop(){
   Serial.print( " / ");
   Serial.print(OutHum,1);
   Serial.println(" %");
-  delay(5000);
+#ifdef MQTT
+  MQTT_connect();
+    pressureFeed.publish(pressure);
+    temperatureFeed.publish(OutTemp);
+    humidityFeed.publish(OutHum);
+#endif
+  delay(9000);
 }
+
+#ifdef MQTT
+// Function to connect and reconnect as necessary to the MQTT server.
+// Should be called in the loop function and it will take care if connecting.
+void MQTT_connect() {
+  int8_t ret;
+
+  // Stop if already connected.
+  if (mqtt.connected()) {
+    return;
+  }
+
+  Serial.print("Connecting to MQTT... ");
+
+  uint8_t retries = 3;
+  while ((ret = mqtt.connect()) != 0) { // connect will return 0 for connected
+       Serial.println(mqtt.connectErrorString(ret));
+       Serial.println("Retrying MQTT connection in 5 seconds...");
+       mqtt.disconnect();
+       delay(5000);  // wait 5 seconds
+       retries--;
+       if (retries == 0) {
+         // basically die and wait for WDT to reset me
+         while (1);
+       }
+  }
+  Serial.println("MQTT Connected!");
+}
+#endif
