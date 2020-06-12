@@ -388,7 +388,7 @@ int switchOn() {
 void setup(){
   // Serial port for debugging purposes
   Serial.begin(115200);
-  Serial.println("\n====================\nSEKOM - THP-01 v1.1\n====================\nCombined inside/outside temperature, humidity and pressure monitor\n");
+  Serial.println("\n====================\nSEKOM - THP-01 v1.3\n====================\nCombined inside/outside temperature, humidity and pressure monitor\n");
   Serial.println("\nhttp://....ip.../intemp; /outtemp; /pressure; /humidity\n");
   
   pinMode(LED, OUTPUT);     // Initialize the LED_BUILTIN pin as an output
