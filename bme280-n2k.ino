@@ -1,8 +1,15 @@
 /*********
- * 
+ *
  * BME280 and DHT sensor data sender to NMEA2000 CAN_BUS, WiFi (HTTP) and MQTT v1.3
  *   by © SEKOM.com - Dr. András Szép 2020-06-10
- * 
+ * libraries used:
+ * https://github.com/ttlappalainen/NMEA2000_esp32
+ * https://github.com/ttlappalainen/NMEA2000
+ * arduino-cli lib install "DHT sensor library"
+ *                         "Adafruit MQTT Library"
+ * https://github.com/me-no-dev/ESPAsyncWebServer.git
+ *
+ *
   - ESP-WROOM-32 Bluetooth and WIFI Dual Core CPU with Low Power Consumption
     https://www.aliexpress.com/item/32864722159.html?spm=a2g0s.9042311.0.0.7ac14c4dv0nB1k
   - GY-BME280-3.3 precision altimeter atmospheric pressure BME280 sensor module
@@ -11,7 +18,7 @@
     https://www.ebay.co.uk/itm/1pc-New-DS18b20-Waterproof-digital-temperature-sensor-probe-Length-100cm/253644294739?hash=item3b0e60ca53:g:clgAAOSwSSNbn14~
   - SN65HVD230 CAN bus transceiver
     https://www.aliexpress.com/item/32686393467.html?spm=a2g0s.9042311.0.0.7ac14c4dv0nB1k
-   
+
 ==================================================================================
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -32,22 +39,22 @@ OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ===================================================================================
 
   ESP32 WROOM w BME280 to NMEA2000 and webserver for temp&pressure&humidity
-  
+
   BME280 sensor connections:
-  3.3v = VCC = SDO 
+  3.3v = VCC = SDO
   GND  = CSB
   SCL =  GPIO5 on NodeMCU (D1) and SCL (GPIO22) on ESP32
   SDA =  GPIO4 on NodeMCU (D2) and SDA (GPIO21) on ESP32
-  
+
   CAN bus connections TX2 - GPIO17
                       RX2 - GPIO16
- 
+
 ********/
 
 #include "config.h"
 
 #include <NMEA2000_CAN.h>  // This will automatically choose right CAN library and create suitable NMEA2000 object
-//#include <Seasmart.h>
+// #include <Seasmart.h>
 #include <memory>
 #include <N2kMessages.h>
 
